@@ -19,6 +19,11 @@ from datetime import datetime
 from pathlib import Path
 import gradio as gr
 
+# Load environment variables from .env file (if it exists)
+# This lets you store your API key in a .env file instead of exporting it
+from dotenv import load_dotenv
+load_dotenv()
+
 # Import the AI libraries
 import ollama
 import anthropic
@@ -254,7 +259,8 @@ def chat_with_claude_stream(message: str, history: list):
         )
         return
 
-    client = anthropic.Anthropic()
+    # Explicitly pass the API key from environment variable
+    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
     messages = []
     for msg in history:

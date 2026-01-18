@@ -34,3 +34,4 @@ build/
 
 # Saved conversations (user-specific)
 conversations/
+.env
