@@ -48,6 +48,30 @@ def ensure_conversations_dir():
     CONVERSATIONS_DIR.mkdir(exist_ok=True)
 
 
+def generate_title(history: list, max_length: int = 40) -> str:
+    """
+    Generate a short title from the conversation's first user message.
+
+    Args:
+        history: The chat history
+        max_length: Maximum characters for the title
+
+    Returns:
+        A short descriptive title
+    """
+    # Find the first user message
+    for msg in history:
+        if msg.get("role") == "user":
+            content = extract_text_content(msg.get("content", ""))
+            # Clean up: remove newlines, extra spaces
+            title = " ".join(content.split())
+            # Truncate if too long, add ellipsis
+            if len(title) > max_length:
+                title = title[:max_length - 3].rsplit(" ", 1)[0] + "..."
+            return title
+    return "Untitled conversation"
+
+
 def save_conversation(history: list) -> str:
     """
     Save the current conversation to a JSON file.
@@ -64,6 +88,9 @@ def save_conversation(history: list) -> str:
 
     ensure_conversations_dir()
 
+    # Generate a title from the first user message
+    title = generate_title(history)
+
     # Create filename with timestamp: conversation_2026-01-17_14-30-45.json
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"conversation_{timestamp}.json"
@@ -73,6 +100,7 @@ def save_conversation(history: list) -> str:
     # We save both the history and some metadata
     data = {
         "saved_at": datetime.now().isoformat(),
+        "title": title,
         "message_count": len(history),
         "history": history,
     }
@@ -82,15 +110,16 @@ def save_conversation(history: list) -> str:
     with open(filepath, "w") as f:
         json.dump(data, f, indent=2)
 
-    return f"Saved to {filename}"
+    return f"Saved: {title}"
 
 
 def get_saved_conversations() -> list:
     """
-    Get a list of all saved conversation files.
+    Get a list of all saved conversation files with their titles.
 
     Returns:
-        List of filenames, newest first
+        List of tuples (display_name, filename) for Gradio dropdown.
+        Display name shows title + date, newest first.
     """
     ensure_conversations_dir()
 
@@ -98,8 +127,27 @@ def get_saved_conversations() -> list:
     # sorted() with reverse=True puts newest first (because of timestamp in name)
     files = sorted(CONVERSATIONS_DIR.glob("*.json"), reverse=True)
 
-    # Return just the filenames (not full paths)
-    return [f.name for f in files]
+    choices = []
+    for f in files:
+        # Try to read the title from the JSON file
+        try:
+            with open(f, "r") as file:
+                data = json.load(file)
+                title = data.get("title", "Untitled")
+                # Extract date from filename (conversation_2026-01-17_14-30-45.json)
+                # Show as "Title - Jan 17, 14:30"
+                date_part = f.stem.replace("conversation_", "")  # 2026-01-17_14-30-45
+                date_obj = datetime.strptime(date_part, "%Y-%m-%d_%H-%M-%S")
+                date_display = date_obj.strftime("%b %d, %H:%M")
+                display_name = f"{title} - {date_display}"
+        except (json.JSONDecodeError, ValueError, KeyError):
+            # Fallback to just filename if we can't parse
+            display_name = f.name
+
+        # Gradio dropdown with tuples: (display_name, actual_value)
+        choices.append((display_name, f.name))
+
+    return choices
 
 
 def load_conversation(filename: str) -> list:
@@ -137,6 +185,26 @@ def check_claude_api_key() -> bool:
     return bool(api_key)
 
 
+def extract_text_content(content) -> str:
+    """
+    Extract plain text from message content.
+
+    Gradio's Chatbot can send content in different formats:
+    - String: "hello" (older format)
+    - List: [{"type": "text", "text": "hello"}] (newer format)
+
+    This helper handles both cases.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list) and len(content) > 0:
+        # Extract text from the first text block
+        first_item = content[0]
+        if isinstance(first_item, dict) and "text" in first_item:
+            return first_item["text"]
+    return str(content)  # Fallback: convert to string
+
+
 def chat_with_ollama_stream(message: str, history: list, model_name: str):
     """
     Stream a response from a local Ollama model.
@@ -146,7 +214,9 @@ def chat_with_ollama_stream(message: str, history: list, model_name: str):
     """
     messages = []
     for msg in history:
-        messages.append({"role": msg["role"], "content": msg["content"]})
+        # Use helper to handle different content formats
+        text = extract_text_content(msg["content"])
+        messages.append({"role": msg["role"], "content": text})
     messages.append({"role": "user", "content": message})
 
     try:
@@ -188,7 +258,9 @@ def chat_with_claude_stream(message: str, history: list):
 
     messages = []
     for msg in history:
-        messages.append({"role": msg["role"], "content": msg["content"]})
+        # Use helper to handle different content formats
+        text = extract_text_content(msg["content"])
+        messages.append({"role": msg["role"], "content": text})
     messages.append({"role": "user", "content": message})
 
     try:
@@ -297,8 +369,8 @@ with gr.Blocks(title="AI Chat") as app:
         if not history:
             return history
 
-        # Get the last user message
-        last_message = history[-1]["content"]
+        # Get the last user message (use helper for content format)
+        last_message = extract_text_content(history[-1]["content"])
 
         # Get history without the last message (for context)
         context = history[:-1]
