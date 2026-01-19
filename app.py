@@ -55,14 +55,14 @@ def ensure_conversations_dir():
 
 def generate_title(history: list, max_length: int = 40) -> str:
     """
-    Generate a short title from the conversation's first user message.
+    Generate a short capitalized title from the conversation's first user message.
 
     Args:
         history: The chat history
         max_length: Maximum characters for the title
 
     Returns:
-        A short descriptive title
+        A short descriptive title with proper capitalization
     """
     # Find the first user message
     for msg in history:
@@ -73,8 +73,9 @@ def generate_title(history: list, max_length: int = 40) -> str:
             # Truncate if too long, add ellipsis
             if len(title) > max_length:
                 title = title[:max_length - 3].rsplit(" ", 1)[0] + "..."
-            return title
-    return "Untitled conversation"
+            # Capitalize each word for proper title case
+            return title.title()
+    return "Untitled Conversation"
 
 
 def save_conversation(history: list) -> str:
@@ -298,14 +299,328 @@ def chat(message: str, history: list, model_choice: str):
 
 
 # ============================================================================
+# CUSTOM THEME (Dark AI Interface)
+# ============================================================================
+
+# Color palette - Mint Fresh theme for readability
+COLORS = {
+    # Backgrounds - light mint tones
+    "bg_app": "#F0FDFA",        # Light mint background
+    "bg_primary": "#FFFFFF",    # White cards
+    "bg_secondary": "#CCFBF1",  # Light teal surface
+    "bg_tertiary": "#99F6E4",   # Slightly darker mint
+    # Text - dark for readability
+    "text_primary": "#134E4A",  # Dark teal
+    "text_secondary": "#475569", # Slate gray
+    "text_muted": "#64748B",    # Muted slate
+    "text_disabled": "#94A3B8", # Light slate
+    # Borders
+    "border": "#A7F3D0",        # Mint border
+    "border_subtle": "#D1FAE5", # Subtle mint
+    # Accents - teal
+    "accent_primary": "#0D9488",  # Teal
+    "accent_secondary": "#14B8A6", # Lighter teal
+    "accent_data": "#0891B2",    # Cyan
+    "accent_warning": "#D97706", # Amber
+    # Semantic
+    "success": "#059669",       # Emerald
+    "warning": "#D97706",       # Amber
+    "error": "#DC2626",         # Red
+    "info": "#0891B2",          # Cyan
+}
+
+# Custom CSS applying the Mint Fresh color palette
+CUSTOM_CSS = """
+/* Global app background - light mint */
+.gradio-container {
+    background-color: #F0FDFA !important;
+    color: #134E4A !important;
+}
+
+/* Main content area */
+.main, .contain {
+    background-color: #F0FDFA !important;
+}
+
+/* Headers and titles */
+h1, h2, h3, h4, .markdown h1, .markdown h2 {
+    color: #134E4A !important;
+}
+
+.markdown p, .markdown {
+    color: #475569 !important;
+}
+
+/* Panels and containers - white cards */
+.panel, .form, .block {
+    background-color: #FFFFFF !important;
+    border: 1px solid #A7F3D0 !important;
+    border-radius: 12px !important;
+}
+
+/* Chatbot container */
+.chatbot {
+    background-color: #FFFFFF !important;
+    border: 1px solid #A7F3D0 !important;
+    border-radius: 12px !important;
+}
+
+/* User messages - Teal accent */
+.message.user {
+    background-color: #0D9488 !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    border-radius: 12px !important;
+}
+
+/* Assistant messages - light mint surface */
+.message.bot {
+    background-color: #CCFBF1 !important;
+    color: #134E4A !important;
+    border: 1px solid #A7F3D0 !important;
+    border-radius: 12px !important;
+}
+
+/* Input textbox */
+textarea, input[type="text"], .textbox {
+    background-color: #FFFFFF !important;
+    color: #134E4A !important;
+    border: 1px solid #A7F3D0 !important;
+    border-radius: 8px !important;
+}
+
+textarea:focus, input[type="text"]:focus {
+    border-color: #0D9488 !important;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.25) !important;
+    outline: none !important;
+}
+
+textarea::placeholder, input::placeholder {
+    color: #94A3B8 !important;
+}
+
+/* Dropdown */
+.dropdown, select, .wrap {
+    background-color: #FFFFFF !important;
+    color: #134E4A !important;
+    border: 1px solid #A7F3D0 !important;
+    border-radius: 8px !important;
+}
+
+/* Dropdown options */
+.dropdown-item, option {
+    background-color: #FFFFFF !important;
+    color: #134E4A !important;
+}
+
+.dropdown-item:hover, option:hover {
+    background-color: #CCFBF1 !important;
+}
+
+/* Dropdown list container */
+ul[role="listbox"], .options {
+    background-color: #FFFFFF !important;
+    border: 1px solid #A7F3D0 !important;
+}
+
+/* Primary button - Teal */
+.primary, button.primary {
+    background-color: #0D9488 !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+}
+
+.primary:hover, button.primary:hover {
+    background-color: #0F766E !important;
+}
+
+/* Secondary button - white with mint border */
+.secondary, button.secondary {
+    background-color: #FFFFFF !important;
+    color: #475569 !important;
+    border: 1px solid #A7F3D0 !important;
+    border-radius: 8px !important;
+}
+
+.secondary:hover, button.secondary:hover {
+    background-color: #CCFBF1 !important;
+}
+
+/* Default buttons */
+button {
+    background-color: #FFFFFF !important;
+    color: #475569 !important;
+    border: 1px solid #A7F3D0 !important;
+    border-radius: 8px !important;
+}
+
+button:hover {
+    background-color: #CCFBF1 !important;
+}
+
+/* Labels */
+label, .label-wrap {
+    color: #475569 !important;
+}
+
+label span {
+    color: #475569 !important;
+}
+
+.info {
+    color: #64748B !important;
+}
+
+/* Status text */
+.status {
+    color: #0891B2 !important;
+}
+
+/* Dividers / horizontal rules */
+hr {
+    border-color: #D1FAE5 !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #F0FDFA;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #A7F3D0;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #0D9488;
+}
+
+/* Code blocks in chat */
+pre, code {
+    background-color: #CCFBF1 !important;
+    color: #134E4A !important;
+    border: 1px solid #A7F3D0 !important;
+    border-radius: 6px !important;
+}
+
+/* Selected dropdown item */
+.selected {
+    background-color: #0D9488 !important;
+    color: #FFFFFF !important;
+}
+
+/* Links */
+a {
+    color: #0891B2 !important;
+}
+
+a:hover {
+    color: #0D9488 !important;
+}
+"""
+
+# ============================================================================
+# GRADIO THEME (using the color palette)
+# ============================================================================
+
+# Build a custom Gradio theme using Mint Fresh color palette
+# This ensures consistent styling throughout the UI
+custom_theme = gr.themes.Base(
+    # Primary colors - Teal for main interactive elements
+    primary_hue=gr.themes.Color(
+        c50="#F0FDFA",   # Lightest mint
+        c100="#CCFBF1",
+        c200="#99F6E4",
+        c300="#5EEAD4",
+        c400="#2DD4BF",
+        c500="#14B8A6",  # Teal
+        c600="#0D9488",  # Primary action
+        c700="#0F766E",
+        c800="#115E59",
+        c900="#134E4A",
+        c950="#042F2E",
+    ),
+    # Secondary colors - mint tones
+    secondary_hue=gr.themes.Color(
+        c50="#F0FDFA",   # App background
+        c100="#CCFBF1",  # Secondary surface
+        c200="#99F6E4",  # Tertiary surface
+        c300="#A7F3D0",  # Borders
+        c400="#6EE7B7",
+        c500="#94A3B8",  # Disabled/placeholder
+        c600="#64748B",  # Muted/labels
+        c700="#475569",  # Secondary text
+        c800="#134E4A",  # Primary text
+        c900="#134E4A",
+        c950="#042F2E",
+    ),
+    # Neutral colors - for backgrounds and text
+    neutral_hue=gr.themes.Color(
+        c50="#F0FDFA",   # App background
+        c100="#CCFBF1",  # Secondary surface
+        c200="#D1FAE5",  # Subtle dividers
+        c300="#A7F3D0",  # Borders
+        c400="#6EE7B7",
+        c500="#94A3B8",  # Disabled/placeholder
+        c600="#64748B",  # Muted/labels
+        c700="#475569",  # Secondary text
+        c800="#134E4A",  # Primary text
+        c900="#134E4A",
+        c950="#042F2E",
+    ),
+).set(
+    # Body and backgrounds - light mint
+    body_background_fill="#F0FDFA",
+    body_background_fill_dark="#F0FDFA",  # Keep light even in dark mode
+    body_text_color="#134E4A",
+    body_text_color_subdued="#475569",
+
+    # Blocks and panels (white cards)
+    block_background_fill="#FFFFFF",
+    block_border_color="#A7F3D0",
+    block_border_width="1px",
+    block_label_text_color="#475569",
+    block_title_text_color="#134E4A",
+
+    # Inputs
+    input_background_fill="#FFFFFF",
+    input_border_color="#A7F3D0",
+    input_border_width="1px",
+    input_placeholder_color="#94A3B8",
+
+    # Buttons - Teal
+    button_primary_background_fill="#0D9488",
+    button_primary_background_fill_hover="#0F766E",
+    button_primary_text_color="#FFFFFF",
+    button_primary_border_color="#0D9488",
+    button_secondary_background_fill="#FFFFFF",
+    button_secondary_background_fill_hover="#CCFBF1",
+    button_secondary_text_color="#475569",
+    button_secondary_border_color="#A7F3D0",
+
+    # Borders and shadows
+    border_color_primary="#A7F3D0",
+    border_color_accent="#0D9488",
+    shadow_drop="none",  # Use borders instead of shadows
+    shadow_spread="0px",
+)
+
+# ============================================================================
 # GRADIO INTERFACE
 # ============================================================================
 
 # Create the Gradio app
 with gr.Blocks(title="AI Chat") as app:
 
-    gr.Markdown("# AI Chat")
-    gr.Markdown("Chat with local Ollama models or Claude API")
+    gr.Markdown("# AI Chat by STRIVE", elem_classes=["title"])
+    gr.Markdown("Chat with local Ollama models or Claude API", elem_classes=["subtitle"])
 
     # Model selection dropdown
     model_dropdown = gr.Dropdown(
@@ -335,7 +650,7 @@ with gr.Blocks(title="AI Chat") as app:
 
     # Separator before save/load section
     gr.Markdown("---")
-    gr.Markdown("### Conversation Management")
+    gr.Markdown("### Save & Load Conversations")
 
     # Save/Load controls in a row
     with gr.Row():
@@ -456,4 +771,6 @@ if __name__ == "__main__":
         server_name="0.0.0.0",
         server_port=7860,
         share=False,
+        theme=custom_theme,
+        css=CUSTOM_CSS,
     )
