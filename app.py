@@ -35,9 +35,9 @@ import anthropic
 
 # Available models - the keys are what users see, values are the actual model names
 MODELS = {
-    "llama3.2:3b (Local)": "llama3.2:3b",
-    "llama3.3:70b (Local)": "llama3.3:70b",
-    "claude-sonnet (API)": "claude-sonnet-4-20250514",
+    "Llama 3.2 3B - Meta's small, quick model (128K context)": "llama3.2:3b",
+    "Llama 3.3 70B - Meta's powerful reasoning model (128K context)": "llama3.3:70b",
+    "Claude Sonnet - Anthropic's balanced model (200K context, API key required)": "claude-sonnet-4-20250514",
 }
 
 # Folder where conversations are saved
@@ -245,10 +245,29 @@ def chat_with_ollama_stream(message: str, history: list, model_name: str):
         yield f"Error connecting to Ollama: {str(e)}\n\nMake sure Ollama is running: `ollama serve`"
 
 
+# Store the last Claude API token usage for display
+# This is updated after each Claude API call
+last_token_usage = {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "model": None,
+}
+
+# Claude Sonnet pricing (per million tokens) as of 2025
+# See: https://www.anthropic.com/pricing
+CLAUDE_PRICING = {
+    "input_per_million": 3.00,   # $3 per million input tokens
+    "output_per_million": 15.00,  # $15 per million output tokens
+}
+
+
 def chat_with_claude_stream(message: str, history: list):
     """
     Stream a response from Claude API.
+    Captures token usage for cost estimation.
     """
+    global last_token_usage
+
     if not check_claude_api_key():
         yield (
             "Claude requires an API key.\n\n"
@@ -281,6 +300,15 @@ def chat_with_claude_stream(message: str, history: list):
                 partial_response += text
                 yield partial_response
 
+            # After streaming completes, capture token usage from the final message
+            final_message = stream.get_final_message()
+            if final_message and final_message.usage:
+                last_token_usage = {
+                    "input_tokens": final_message.usage.input_tokens,
+                    "output_tokens": final_message.usage.output_tokens,
+                    "model": "Claude Sonnet",
+                }
+
     except anthropic.AuthenticationError:
         yield "Authentication failed. Please check your API key."
 
@@ -299,99 +327,99 @@ def chat(message: str, history: list, model_choice: str):
 
 
 # ============================================================================
-# CUSTOM THEME (Dark AI Interface)
+# CUSTOM THEME (Professional Blue-Grey)
 # ============================================================================
 
-# Color palette - Mint Fresh theme for readability
+# Color palette - Clinical blue-grey theme for a professional medical aesthetic
 COLORS = {
-    # Backgrounds - light mint tones
-    "bg_app": "#F0FDFA",        # Light mint background
+    # Backgrounds - light slate/blue-grey tones
+    "bg_app": "#F8FAFC",        # Very light slate background
     "bg_primary": "#FFFFFF",    # White cards
-    "bg_secondary": "#CCFBF1",  # Light teal surface
-    "bg_tertiary": "#99F6E4",   # Slightly darker mint
-    # Text - dark for readability
-    "text_primary": "#134E4A",  # Dark teal
-    "text_secondary": "#475569", # Slate gray
+    "bg_secondary": "#F1F5F9",  # Light slate surface
+    "bg_tertiary": "#E2E8F0",   # Slightly darker slate
+    # Text - dark slate for readability
+    "text_primary": "#0F172A",  # Dark slate (near black)
+    "text_secondary": "#334155", # Medium slate
     "text_muted": "#64748B",    # Muted slate
     "text_disabled": "#94A3B8", # Light slate
     # Borders
-    "border": "#A7F3D0",        # Mint border
-    "border_subtle": "#D1FAE5", # Subtle mint
-    # Accents - teal
-    "accent_primary": "#0D9488",  # Teal
-    "accent_secondary": "#14B8A6", # Lighter teal
-    "accent_data": "#0891B2",    # Cyan
+    "border": "#CBD5E1",        # Slate border
+    "border_subtle": "#E2E8F0", # Subtle slate
+    # Accents - professional blue
+    "accent_primary": "#2563EB",  # Blue 600
+    "accent_secondary": "#3B82F6", # Blue 500
+    "accent_data": "#0EA5E9",    # Sky blue
     "accent_warning": "#D97706", # Amber
     # Semantic
     "success": "#059669",       # Emerald
     "warning": "#D97706",       # Amber
     "error": "#DC2626",         # Red
-    "info": "#0891B2",          # Cyan
+    "info": "#0EA5E9",          # Sky blue
 }
 
-# Custom CSS applying the Mint Fresh color palette
+# Custom CSS applying the Clinical Blue-Grey color palette
 CUSTOM_CSS = """
-/* Global app background - light mint */
+/* Global app background - light slate */
 .gradio-container {
-    background-color: #F0FDFA !important;
-    color: #134E4A !important;
+    background-color: #F8FAFC !important;
+    color: #0F172A !important;
 }
 
 /* Main content area */
 .main, .contain {
-    background-color: #F0FDFA !important;
+    background-color: #F8FAFC !important;
 }
 
 /* Headers and titles */
 h1, h2, h3, h4, .markdown h1, .markdown h2 {
-    color: #134E4A !important;
+    color: #0F172A !important;
 }
 
 .markdown p, .markdown {
-    color: #475569 !important;
+    color: #334155 !important;
 }
 
 /* Panels and containers - white cards */
 .panel, .form, .block {
     background-color: #FFFFFF !important;
-    border: 1px solid #A7F3D0 !important;
+    border: 1px solid #CBD5E1 !important;
     border-radius: 12px !important;
 }
 
 /* Chatbot container */
 .chatbot {
     background-color: #FFFFFF !important;
-    border: 1px solid #A7F3D0 !important;
+    border: 1px solid #CBD5E1 !important;
     border-radius: 12px !important;
 }
 
-/* User messages - Teal accent */
+/* User messages - Professional blue accent */
 .message.user {
-    background-color: #0D9488 !important;
+    background-color: #2563EB !important;
     color: #FFFFFF !important;
     border: none !important;
     border-radius: 12px !important;
 }
 
-/* Assistant messages - light mint surface */
+/* Assistant messages - light slate surface */
 .message.bot {
-    background-color: #CCFBF1 !important;
-    color: #134E4A !important;
-    border: 1px solid #A7F3D0 !important;
+    background-color: #F1F5F9 !important;
+    color: #0F172A !important;
+    border: 1px solid #CBD5E1 !important;
     border-radius: 12px !important;
 }
 
 /* Input textbox */
 textarea, input[type="text"], .textbox {
     background-color: #FFFFFF !important;
-    color: #134E4A !important;
-    border: 1px solid #A7F3D0 !important;
+    color: #0F172A !important;
+    border: 1px solid #CBD5E1 !important;
     border-radius: 8px !important;
 }
 
 textarea:focus, input[type="text"]:focus {
-    border-color: #0D9488 !important;
-    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.25) !important;
+    border-color: #2563EB !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2) !important;
     outline: none !important;
 }
 
@@ -402,30 +430,30 @@ textarea::placeholder, input::placeholder {
 /* Dropdown */
 .dropdown, select, .wrap {
     background-color: #FFFFFF !important;
-    color: #134E4A !important;
-    border: 1px solid #A7F3D0 !important;
+    color: #0F172A !important;
+    border: 1px solid #CBD5E1 !important;
     border-radius: 8px !important;
 }
 
 /* Dropdown options */
 .dropdown-item, option {
     background-color: #FFFFFF !important;
-    color: #134E4A !important;
+    color: #0F172A !important;
 }
 
 .dropdown-item:hover, option:hover {
-    background-color: #CCFBF1 !important;
+    background-color: #F1F5F9 !important;
 }
 
 /* Dropdown list container */
 ul[role="listbox"], .options {
     background-color: #FFFFFF !important;
-    border: 1px solid #A7F3D0 !important;
+    border: 1px solid #CBD5E1 !important;
 }
 
-/* Primary button - Teal */
+/* Primary button - Professional blue */
 .primary, button.primary {
-    background-color: #0D9488 !important;
+    background-color: #2563EB !important;
     color: #FFFFFF !important;
     border: none !important;
     border-radius: 8px !important;
@@ -433,40 +461,40 @@ ul[role="listbox"], .options {
 }
 
 .primary:hover, button.primary:hover {
-    background-color: #0F766E !important;
+    background-color: #1D4ED8 !important;
 }
 
-/* Secondary button - white with mint border */
+/* Secondary button - white with slate border */
 .secondary, button.secondary {
     background-color: #FFFFFF !important;
-    color: #475569 !important;
-    border: 1px solid #A7F3D0 !important;
+    color: #334155 !important;
+    border: 1px solid #CBD5E1 !important;
     border-radius: 8px !important;
 }
 
 .secondary:hover, button.secondary:hover {
-    background-color: #CCFBF1 !important;
+    background-color: #F1F5F9 !important;
 }
 
 /* Default buttons */
 button {
     background-color: #FFFFFF !important;
-    color: #475569 !important;
-    border: 1px solid #A7F3D0 !important;
+    color: #334155 !important;
+    border: 1px solid #CBD5E1 !important;
     border-radius: 8px !important;
 }
 
 button:hover {
-    background-color: #CCFBF1 !important;
+    background-color: #F1F5F9 !important;
 }
 
 /* Labels */
 label, .label-wrap {
-    color: #475569 !important;
+    color: #334155 !important;
 }
 
 label span {
-    color: #475569 !important;
+    color: #334155 !important;
 }
 
 .info {
@@ -475,12 +503,12 @@ label span {
 
 /* Status text */
 .status {
-    color: #0891B2 !important;
+    color: #0EA5E9 !important;
 }
 
 /* Dividers / horizontal rules */
 hr {
-    border-color: #D1FAE5 !important;
+    border-color: #E2E8F0 !important;
 }
 
 /* Scrollbar styling */
@@ -490,39 +518,39 @@ hr {
 }
 
 ::-webkit-scrollbar-track {
-    background: #F0FDFA;
+    background: #F8FAFC;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #A7F3D0;
+    background: #CBD5E1;
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #0D9488;
+    background: #2563EB;
 }
 
 /* Code blocks in chat */
 pre, code {
-    background-color: #CCFBF1 !important;
-    color: #134E4A !important;
-    border: 1px solid #A7F3D0 !important;
+    background-color: #F1F5F9 !important;
+    color: #0F172A !important;
+    border: 1px solid #CBD5E1 !important;
     border-radius: 6px !important;
 }
 
 /* Selected dropdown item */
 .selected {
-    background-color: #0D9488 !important;
+    background-color: #2563EB !important;
     color: #FFFFFF !important;
 }
 
 /* Links */
 a {
-    color: #0891B2 !important;
+    color: #2563EB !important;
 }
 
 a:hover {
-    color: #0D9488 !important;
+    color: #1D4ED8 !important;
 }
 """
 
@@ -530,84 +558,84 @@ a:hover {
 # GRADIO THEME (using the color palette)
 # ============================================================================
 
-# Build a custom Gradio theme using Mint Fresh color palette
-# This ensures consistent styling throughout the UI
+# Build a custom Gradio theme using Clinical Blue-Grey color palette
+# Professional medical aesthetic with blues and greys
 custom_theme = gr.themes.Base(
-    # Primary colors - Teal for main interactive elements
+    # Primary colors - Professional blue for main interactive elements
     primary_hue=gr.themes.Color(
-        c50="#F0FDFA",   # Lightest mint
-        c100="#CCFBF1",
-        c200="#99F6E4",
-        c300="#5EEAD4",
-        c400="#2DD4BF",
-        c500="#14B8A6",  # Teal
-        c600="#0D9488",  # Primary action
-        c700="#0F766E",
-        c800="#115E59",
-        c900="#134E4A",
-        c950="#042F2E",
+        c50="#EFF6FF",   # Lightest blue
+        c100="#DBEAFE",
+        c200="#BFDBFE",
+        c300="#93C5FD",
+        c400="#60A5FA",
+        c500="#3B82F6",  # Blue 500
+        c600="#2563EB",  # Primary action (Blue 600)
+        c700="#1D4ED8",  # Hover state
+        c800="#1E40AF",
+        c900="#1E3A8A",
+        c950="#172554",
     ),
-    # Secondary colors - mint tones
+    # Secondary colors - slate tones
     secondary_hue=gr.themes.Color(
-        c50="#F0FDFA",   # App background
-        c100="#CCFBF1",  # Secondary surface
-        c200="#99F6E4",  # Tertiary surface
-        c300="#A7F3D0",  # Borders
-        c400="#6EE7B7",
-        c500="#94A3B8",  # Disabled/placeholder
-        c600="#64748B",  # Muted/labels
-        c700="#475569",  # Secondary text
-        c800="#134E4A",  # Primary text
-        c900="#134E4A",
-        c950="#042F2E",
+        c50="#F8FAFC",   # App background
+        c100="#F1F5F9",  # Secondary surface
+        c200="#E2E8F0",  # Tertiary surface
+        c300="#CBD5E1",  # Borders
+        c400="#94A3B8",
+        c500="#64748B",  # Muted text
+        c600="#475569",  # Labels
+        c700="#334155",  # Secondary text
+        c800="#1E293B",  # Primary text
+        c900="#0F172A",  # Darkest text
+        c950="#020617",
     ),
-    # Neutral colors - for backgrounds and text
+    # Neutral colors - slate for backgrounds and text
     neutral_hue=gr.themes.Color(
-        c50="#F0FDFA",   # App background
-        c100="#CCFBF1",  # Secondary surface
-        c200="#D1FAE5",  # Subtle dividers
-        c300="#A7F3D0",  # Borders
-        c400="#6EE7B7",
-        c500="#94A3B8",  # Disabled/placeholder
-        c600="#64748B",  # Muted/labels
-        c700="#475569",  # Secondary text
-        c800="#134E4A",  # Primary text
-        c900="#134E4A",
-        c950="#042F2E",
+        c50="#F8FAFC",   # App background
+        c100="#F1F5F9",  # Secondary surface
+        c200="#E2E8F0",  # Subtle dividers
+        c300="#CBD5E1",  # Borders
+        c400="#94A3B8",
+        c500="#64748B",  # Muted/placeholder
+        c600="#475569",  # Labels
+        c700="#334155",  # Secondary text
+        c800="#1E293B",
+        c900="#0F172A",  # Primary text
+        c950="#020617",
     ),
 ).set(
-    # Body and backgrounds - light mint
-    body_background_fill="#F0FDFA",
-    body_background_fill_dark="#F0FDFA",  # Keep light even in dark mode
-    body_text_color="#134E4A",
-    body_text_color_subdued="#475569",
+    # Body and backgrounds - light slate
+    body_background_fill="#F8FAFC",
+    body_background_fill_dark="#F8FAFC",  # Keep light even in dark mode
+    body_text_color="#0F172A",
+    body_text_color_subdued="#334155",
 
     # Blocks and panels (white cards)
     block_background_fill="#FFFFFF",
-    block_border_color="#A7F3D0",
+    block_border_color="#CBD5E1",
     block_border_width="1px",
-    block_label_text_color="#475569",
-    block_title_text_color="#134E4A",
+    block_label_text_color="#334155",
+    block_title_text_color="#0F172A",
 
     # Inputs
     input_background_fill="#FFFFFF",
-    input_border_color="#A7F3D0",
+    input_border_color="#CBD5E1",
     input_border_width="1px",
     input_placeholder_color="#94A3B8",
 
-    # Buttons - Teal
-    button_primary_background_fill="#0D9488",
-    button_primary_background_fill_hover="#0F766E",
+    # Buttons - Professional blue
+    button_primary_background_fill="#2563EB",
+    button_primary_background_fill_hover="#1D4ED8",
     button_primary_text_color="#FFFFFF",
-    button_primary_border_color="#0D9488",
+    button_primary_border_color="#2563EB",
     button_secondary_background_fill="#FFFFFF",
-    button_secondary_background_fill_hover="#CCFBF1",
-    button_secondary_text_color="#475569",
-    button_secondary_border_color="#A7F3D0",
+    button_secondary_background_fill_hover="#F1F5F9",
+    button_secondary_text_color="#334155",
+    button_secondary_border_color="#CBD5E1",
 
     # Borders and shadows
-    border_color_primary="#A7F3D0",
-    border_color_accent="#0D9488",
+    border_color_primary="#CBD5E1",
+    border_color_accent="#2563EB",
     shadow_drop="none",  # Use borders instead of shadows
     shadow_spread="0px",
 )
@@ -619,58 +647,90 @@ custom_theme = gr.themes.Base(
 # Create the Gradio app
 with gr.Blocks(title="AI Chat") as app:
 
-    gr.Markdown("# AI Chat by STRIVE", elem_classes=["title"])
-    gr.Markdown("Chat with local Ollama models or Claude API", elem_classes=["subtitle"])
+    gr.Markdown("# Hello", elem_classes=["title"])
+    gr.Markdown("Chat with local and cloud AI models", elem_classes=["subtitle"])
 
-    # Model selection dropdown
-    model_dropdown = gr.Dropdown(
-        choices=list(MODELS.keys()),
-        value="llama3.2:3b (Local)",
-        label="Select Model",
-        info="Local models require Ollama running. Claude requires API key.",
-    )
+    # Organize interface into tabs
+    with gr.Tabs():
 
-    # The chatbot display area (shows the conversation)
-    chatbot = gr.Chatbot(
-        label="Conversation",
-        height=400,
-    )
+        # ====================================================================
+        # TAB 1: Chat - main chat interface
+        # ====================================================================
+        with gr.TabItem("Chat"):
+            # Model selection dropdown
+            model_dropdown = gr.Dropdown(
+                choices=list(MODELS.keys()),
+                value="Llama 3.2 3B - Meta's small, quick model (128K context)",
+                label="Select Model",
+                info="Local models require Ollama running. Claude requires API key.",
+            )
 
-    # Text input for user messages
-    msg_input = gr.Textbox(
-        label="Your message",
-        placeholder="Type your message here...",
-        lines=2,
-    )
+            # Status indicator shown while generating a response
+            generating_status = gr.Markdown("", visible=True)
 
-    # Row of action buttons
-    with gr.Row():
-        send_btn = gr.Button("Send", variant="primary")
-        clear_btn = gr.Button("Clear")
+            # The chatbot display area (shows the conversation)
+            chatbot = gr.Chatbot(
+                label="Conversation",
+                height=400,
+            )
 
-    # Separator before save/load section
-    gr.Markdown("---")
-    gr.Markdown("### Save & Load Conversations")
+            # Text input for user messages
+            msg_input = gr.Textbox(
+                label="Your message",
+                placeholder="Type your message here...",
+                lines=2,
+            )
 
-    # Save/Load controls in a row
-    with gr.Row():
-        save_btn = gr.Button("Save Conversation", variant="secondary")
-        save_status = gr.Textbox(
-            label="Status",
-            interactive=False,  # User can't type here, it's just for display
-            scale=2,
-        )
+            # Clickable example prompts for first-time users
+            # When clicked, these fill the message input box
+            gr.Examples(
+                examples=[
+                    "What are the key considerations for anticoagulation management perioperatively?",
+                    "Compare laparoscopic vs robotic approaches for hernia repair",
+                    "Help me draft a patient education handout for gallbladder surgery",
+                    "Compare the pros and cons of local AI models vs cloud AI",
+                ],
+                inputs=msg_input,
+                label="Try an example",
+            )
 
-    with gr.Row():
-        # Dropdown to select a saved conversation
-        load_dropdown = gr.Dropdown(
-            choices=get_saved_conversations(),
-            label="Load Saved Conversation",
-            info="Select a conversation to load",
-            scale=2,
-        )
-        refresh_btn = gr.Button("Refresh List")
-        load_btn = gr.Button("Load", variant="secondary")
+            # Row of action buttons
+            with gr.Row():
+                send_btn = gr.Button("Send", variant="primary")
+                # Stop button - only visible while generating
+                stop_btn = gr.Button("Stop", variant="stop", visible=False)
+                clear_btn = gr.Button("Clear")
+
+            # Token usage display (only shown for Claude API calls)
+            token_usage_display = gr.Markdown("")
+
+            # Save conversation controls
+            gr.Markdown("---")
+            with gr.Row():
+                save_btn = gr.Button("Save Conversation", variant="secondary")
+                save_status = gr.Textbox(
+                    label="Status",
+                    interactive=False,  # User can't type here, it's just for display
+                    scale=2,
+                )
+
+        # ====================================================================
+        # TAB 2: History - load saved conversations
+        # ====================================================================
+        with gr.TabItem("History"):
+            gr.Markdown("### Load Saved Conversations")
+            gr.Markdown("Select a previously saved conversation to continue chatting.")
+
+            with gr.Row():
+                # Dropdown to select a saved conversation
+                load_dropdown = gr.Dropdown(
+                    choices=get_saved_conversations(),
+                    label="Load Saved Conversation",
+                    info="Select a conversation to load",
+                    scale=2,
+                )
+                refresh_btn = gr.Button("Refresh List")
+                load_btn = gr.Button("Load", variant="secondary")
 
     # ========================================================================
     # EVENT HANDLERS
@@ -684,6 +744,53 @@ with gr.Blocks(title="AI Chat") as app:
         # Add user message to history
         history = history + [{"role": "user", "content": message}]
         return "", history
+
+    def show_generating_status(model_choice: str):
+        """Show which model is generating a response and show Stop button."""
+        # Extract a short model name from the dropdown label
+        # e.g., "Llama 3.2 3B - Meta's small..." -> "Llama 3.2 3B"
+        short_name = model_choice.split(" - ")[0]
+        status_text = f"*Generating response with {short_name}...*"
+        # Return: status text, stop button visible
+        return status_text, gr.Button(visible=True)
+
+    def hide_generating_status():
+        """Hide the generating status and Stop button when done."""
+        # Return: empty status, stop button hidden
+        return "", gr.Button(visible=False)
+
+    def update_token_usage(model_choice: str):
+        """
+        Display token usage and estimated cost after Claude API calls.
+        Returns empty string for non-Claude models.
+        """
+        # Only show token usage for Claude models
+        if "claude" not in model_choice.lower():
+            return ""
+
+        # Check if we have token usage data
+        if last_token_usage["model"] is None:
+            return ""
+
+        input_tokens = last_token_usage["input_tokens"]
+        output_tokens = last_token_usage["output_tokens"]
+        total_tokens = input_tokens + output_tokens
+
+        # Calculate estimated cost
+        input_cost = (input_tokens / 1_000_000) * CLAUDE_PRICING["input_per_million"]
+        output_cost = (output_tokens / 1_000_000) * CLAUDE_PRICING["output_per_million"]
+        total_cost = input_cost + output_cost
+
+        # Format the display string
+        return (
+            f"**Token Usage:** {total_tokens:,} tokens "
+            f"({input_tokens:,} input, {output_tokens:,} output) · "
+            f"**Est. Cost:** ${total_cost:.4f}"
+        )
+
+    def clear_token_usage():
+        """Clear the token usage display."""
+        return ""
 
     def bot_response(history: list, model_choice: str):
         """Generate bot response and add to history."""
@@ -721,29 +828,65 @@ with gr.Blocks(title="AI Chat") as app:
         return load_conversation(filename)
 
     # Connect the send button and enter key to send message
-    # This is a chain: first add user message, then generate response
-    msg_input.submit(
+    # Chain: add user message -> show status/stop btn -> generate response -> hide status/stop btn -> show token usage
+    # We store the event references so the Stop button can cancel them
+    submit_event = msg_input.submit(
         user_message,
         inputs=[msg_input, chatbot],
         outputs=[msg_input, chatbot],
     ).then(
-        bot_response,
-        inputs=[chatbot, model_dropdown],
-        outputs=[chatbot],
-    )
-
-    send_btn.click(
-        user_message,
-        inputs=[msg_input, chatbot],
-        outputs=[msg_input, chatbot],
+        show_generating_status,
+        inputs=[model_dropdown],
+        outputs=[generating_status, stop_btn],
     ).then(
         bot_response,
         inputs=[chatbot, model_dropdown],
         outputs=[chatbot],
+    ).then(
+        hide_generating_status,
+        outputs=[generating_status, stop_btn],
+    ).then(
+        update_token_usage,
+        inputs=[model_dropdown],
+        outputs=[token_usage_display],
     )
 
-    # Clear button
-    clear_btn.click(clear_chat, outputs=[chatbot])
+    click_event = send_btn.click(
+        user_message,
+        inputs=[msg_input, chatbot],
+        outputs=[msg_input, chatbot],
+    ).then(
+        show_generating_status,
+        inputs=[model_dropdown],
+        outputs=[generating_status, stop_btn],
+    ).then(
+        bot_response,
+        inputs=[chatbot, model_dropdown],
+        outputs=[chatbot],
+    ).then(
+        hide_generating_status,
+        outputs=[generating_status, stop_btn],
+    ).then(
+        update_token_usage,
+        inputs=[model_dropdown],
+        outputs=[token_usage_display],
+    )
+
+    # Stop button cancels ongoing generation and hides itself
+    stop_btn.click(
+        hide_generating_status,
+        outputs=[generating_status, stop_btn],
+        cancels=[submit_event, click_event],
+    ).then(
+        clear_token_usage,
+        outputs=[token_usage_display],
+    )
+
+    # Clear button - also clears token usage display
+    clear_btn.click(clear_chat, outputs=[chatbot]).then(
+        clear_token_usage,
+        outputs=[token_usage_display],
+    )
 
     # Save button
     save_btn.click(save_chat, inputs=[chatbot], outputs=[save_status])
@@ -773,4 +916,6 @@ if __name__ == "__main__":
         share=False,
         theme=custom_theme,
         css=CUSTOM_CSS,
+        # Simple password protection - shows login screen before chat
+        auth=("digital", "surgeon"),
     )
