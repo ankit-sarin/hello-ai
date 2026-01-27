@@ -326,6 +326,59 @@ def chat(message: str, history: list, model_choice: str):
         yield from chat_with_ollama_stream(message, history, model_name)
 
 
+def stream_response(message: str, history: list, model_choice: str):
+    """
+    Generator that yields tuples to update multiple outputs.
+
+    Pattern from llm-council: yield partial response to Markdown component,
+    then append complete response to Chatbot history when done.
+
+    During streaming: streaming box visible & large, chatbot small
+    When complete: streaming box hidden, chatbot full size
+    """
+    if not message.strip():
+        # No message, return unchanged
+        yield (
+            gr.update(value=history, height=400),  # chatbot full size
+            gr.update(visible=False),  # streaming_group hidden
+            "",  # streaming_display
+            "",  # status_display
+            gr.Button(visible=False),  # stop_btn
+        )
+        return
+
+    # Add user message to history immediately
+    history = history + [{"role": "user", "content": message}]
+
+    # Show status and stop button
+    model_short = model_choice.split(" - ")[0]
+    status = f"*Generating response with {model_short}...*"
+
+    # Stream the response - streaming box prominent, chatbot shrunk
+    partial_response = ""
+    for chunk in chat(message, history[:-1], model_choice):  # history without current user msg
+        partial_response = chunk
+        yield (
+            gr.update(value=history, height=150),  # chatbot small during streaming
+            gr.update(visible=True),  # streaming_group visible
+            partial_response,  # streaming_display shows response
+            status,  # status_display
+            gr.Button(visible=True),  # stop_btn
+        )
+
+    # Streaming complete - append assistant response to history
+    history = history + [{"role": "assistant", "content": partial_response}]
+
+    # Hide streaming box, expand chatbot to full size
+    yield (
+        gr.update(value=history, height=400),  # chatbot full size
+        gr.update(visible=False),  # streaming_group hidden
+        "",  # streaming_display cleared
+        "",  # status_display cleared
+        gr.Button(visible=False),  # stop_btn hidden
+    )
+
+
 # ============================================================================
 # CUSTOM THEME (Professional Blue-Grey)
 # ============================================================================
@@ -530,6 +583,27 @@ hr {
     background: #2563EB;
 }
 
+/* Streaming output area - prominent box for AI response during generation */
+#streaming-output {
+    min-height: 200px;
+    max-height: 350px;
+    overflow-y: auto;
+    padding: 16px;
+    background-color: #FFFFFF !important;
+    border: 2px solid #2563EB !important;
+    border-radius: 8px;
+    margin: 8px 0;
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+#status {
+    color: #2563EB !important;
+    font-style: italic;
+    font-weight: 500;
+    padding: 4px 0;
+}
+
 /* Code blocks in chat */
 pre, code {
     background-color: #F1F5F9 !important;
@@ -665,24 +739,31 @@ with gr.Blocks(title="AI Chat") as app:
                 info="Local models require Ollama running. Claude requires API key.",
             )
 
-            # Status indicator shown while generating a response
-            generating_status = gr.Markdown("", visible=True)
+            # Streaming display - shows response as it's generated (ABOVE conversation)
+            # Starts hidden, becomes prominent during streaming
+            with gr.Group(visible=False) as streaming_group:
+                status_display = gr.Markdown("", elem_id="status")
+                streaming_display = gr.Markdown(
+                    value="",
+                    elem_id="streaming-output",
+                )
 
-            # The chatbot display area (shows the conversation)
+            # Chatbot displays completed conversation history
+            # Gradio 6.x uses messages format {"role": ..., "content": ...} by default
             chatbot = gr.Chatbot(
                 label="Conversation",
                 height=400,
             )
 
-            # Text input for user messages
+            # User input
             msg_input = gr.Textbox(
                 label="Your message",
                 placeholder="Type your message here...",
                 lines=2,
+                interactive=True,
             )
 
-            # Clickable example prompts for first-time users
-            # When clicked, these fill the message input box
+            # Example prompts
             gr.Examples(
                 examples=[
                     "What are the key considerations for anticoagulation management perioperatively?",
@@ -694,10 +775,9 @@ with gr.Blocks(title="AI Chat") as app:
                 label="Try an example",
             )
 
-            # Row of action buttons
+            # Action buttons
             with gr.Row():
                 send_btn = gr.Button("Send", variant="primary")
-                # Stop button - only visible while generating
                 stop_btn = gr.Button("Stop", variant="stop", visible=False)
                 clear_btn = gr.Button("Clear")
 
@@ -737,28 +817,6 @@ with gr.Blocks(title="AI Chat") as app:
     # ========================================================================
     # These connect buttons/inputs to functions
 
-    def user_message(message: str, history: list):
-        """Add user message to history and clear input."""
-        if not message.strip():
-            return "", history
-        # Add user message to history
-        history = history + [{"role": "user", "content": message}]
-        return "", history
-
-    def show_generating_status(model_choice: str):
-        """Show which model is generating a response and show Stop button."""
-        # Extract a short model name from the dropdown label
-        # e.g., "Llama 3.2 3B - Meta's small..." -> "Llama 3.2 3B"
-        short_name = model_choice.split(" - ")[0]
-        status_text = f"*Generating response with {short_name}...*"
-        # Return: status text, stop button visible
-        return status_text, gr.Button(visible=True)
-
-    def hide_generating_status():
-        """Hide the generating status and Stop button when done."""
-        # Return: empty status, stop button hidden
-        return "", gr.Button(visible=False)
-
     def update_token_usage(model_choice: str):
         """
         Display token usage and estimated cost after Claude API calls.
@@ -788,31 +846,6 @@ with gr.Blocks(title="AI Chat") as app:
             f"**Est. Cost:** ${total_cost:.4f}"
         )
 
-    def clear_token_usage():
-        """Clear the token usage display."""
-        return ""
-
-    def bot_response(history: list, model_choice: str):
-        """Generate bot response and add to history."""
-        if not history:
-            return history
-
-        # Get the last user message (use helper for content format)
-        last_message = extract_text_content(history[-1]["content"])
-
-        # Get history without the last message (for context)
-        context = history[:-1]
-
-        # Stream the response
-        partial = ""
-        for partial in chat(last_message, context, model_choice):
-            # Update history with partial response
-            yield history + [{"role": "assistant", "content": partial}]
-
-    def clear_chat():
-        """Clear the conversation."""
-        return []
-
     def save_chat(history: list):
         """Save current conversation."""
         return save_conversation(history)
@@ -827,65 +860,46 @@ with gr.Blocks(title="AI Chat") as app:
             return []
         return load_conversation(filename)
 
-    # Connect the send button and enter key to send message
-    # Chain: add user message -> show status/stop btn -> generate response -> hide status/stop btn -> show token usage
-    # We store the event references so the Stop button can cancel them
-    submit_event = msg_input.submit(
-        user_message,
-        inputs=[msg_input, chatbot],
-        outputs=[msg_input, chatbot],
+    # Submit on button click or Enter key
+    # Chain: stream_response -> clear input -> update tokens
+    submit_event = send_btn.click(
+        fn=stream_response,
+        inputs=[msg_input, chatbot, model_dropdown],
+        outputs=[chatbot, streaming_group, streaming_display, status_display, stop_btn],
     ).then(
-        show_generating_status,
-        inputs=[model_dropdown],
-        outputs=[generating_status, stop_btn],
+        fn=lambda: "",  # Clear input after submit
+        outputs=[msg_input],
     ).then(
-        bot_response,
-        inputs=[chatbot, model_dropdown],
-        outputs=[chatbot],
-    ).then(
-        hide_generating_status,
-        outputs=[generating_status, stop_btn],
-    ).then(
-        update_token_usage,
+        fn=update_token_usage,
         inputs=[model_dropdown],
         outputs=[token_usage_display],
     )
 
-    click_event = send_btn.click(
-        user_message,
-        inputs=[msg_input, chatbot],
-        outputs=[msg_input, chatbot],
+    # Also trigger on Enter key
+    enter_event = msg_input.submit(
+        fn=stream_response,
+        inputs=[msg_input, chatbot, model_dropdown],
+        outputs=[chatbot, streaming_group, streaming_display, status_display, stop_btn],
     ).then(
-        show_generating_status,
-        inputs=[model_dropdown],
-        outputs=[generating_status, stop_btn],
+        fn=lambda: "",
+        outputs=[msg_input],
     ).then(
-        bot_response,
-        inputs=[chatbot, model_dropdown],
-        outputs=[chatbot],
-    ).then(
-        hide_generating_status,
-        outputs=[generating_status, stop_btn],
-    ).then(
-        update_token_usage,
+        fn=update_token_usage,
         inputs=[model_dropdown],
         outputs=[token_usage_display],
     )
 
-    # Stop button cancels ongoing generation and hides itself
+    # Stop button cancels streaming and resets UI
     stop_btn.click(
-        hide_generating_status,
-        outputs=[generating_status, stop_btn],
-        cancels=[submit_event, click_event],
-    ).then(
-        clear_token_usage,
-        outputs=[token_usage_display],
+        fn=lambda: (gr.update(height=400), gr.update(visible=False), "", "", gr.Button(visible=False)),
+        outputs=[chatbot, streaming_group, streaming_display, status_display, stop_btn],
+        cancels=[submit_event, enter_event],
     )
 
-    # Clear button - also clears token usage display
-    clear_btn.click(clear_chat, outputs=[chatbot]).then(
-        clear_token_usage,
-        outputs=[token_usage_display],
+    # Clear button
+    clear_btn.click(
+        fn=lambda: ([], gr.update(visible=False), "", ""),
+        outputs=[chatbot, streaming_group, streaming_display, status_display],
     )
 
     # Save button
@@ -894,7 +908,7 @@ with gr.Blocks(title="AI Chat") as app:
     # Refresh button updates the dropdown choices
     refresh_btn.click(refresh_conversations, outputs=[load_dropdown])
 
-    # Load button
+    # Load button - load into chatbot
     load_btn.click(load_chat, inputs=[load_dropdown], outputs=[chatbot])
 
 
