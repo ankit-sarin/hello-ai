@@ -718,6 +718,11 @@ custom_theme = gr.themes.Base(
 # GRADIO INTERFACE
 # ============================================================================
 
+# Load brand CSS from external file and combine with inline custom CSS
+_css_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gradio-theme.css")
+with open(_css_path, "r") as f:
+    brand_css = f.read()
+
 # Create the Gradio app
 with gr.Blocks(title="AI Chat") as app:
 
@@ -929,7 +934,7 @@ if __name__ == "__main__":
         server_port=7860,
         share=False,
         theme=custom_theme,
-        css=CUSTOM_CSS,
+        css=CUSTOM_CSS + brand_css,
         # Simple password protection - shows login screen before chat
         auth=("digital", "surgeon"),
     )
